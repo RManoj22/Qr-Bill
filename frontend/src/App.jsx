@@ -10,7 +10,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/upload-bill" element={<UploadBill />} />
-        <Route path="/mobile_upload/:session_id" element={<MobileUpload />} />
+        <Route path="/mobile_upload" element={<MobileUpload />} />
       </Routes>
     </Router>
   );
