@@ -20,7 +20,7 @@ const MobileUpload = () => {
 
     // Create a new WebSocket connection, which will generate a new session ID
     // const socket = io("http://localhost:8000");
-    const socket = io(import.meta.env.BACKEND_BASE_URL);
+    const socket = io(import.meta.env.VITE_BACKEND_BASE_URL);
 
     socket.on("connect", () => {
       console.log("WebSocket connected successfully!");
