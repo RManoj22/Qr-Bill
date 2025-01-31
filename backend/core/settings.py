@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'chat',
     'corsheaders',
     'rest_framework',
+    'ai_helper'
 ]
 
 MIDDLEWARE = [
@@ -130,9 +131,8 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-]
+CORS_ALLOW_ALL_ORIGINS = True
+
 
 # Add this setting for WebSocket connections
 CHANNEL_LAYERS = {

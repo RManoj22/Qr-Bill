@@ -6,22 +6,18 @@ const UploadBill = () => {
   const [connected, setConnected] = useState(false);
   const [sessionId, setSessionId] = useState(null);
   const [fileUrl, setFileUrl] = useState(null);
-  const [qrUrl, setQrUrl] = useState(""); // Store the QR code URL
+  const [qrUrl, setQrUrl] = useState("");
+  const [loading, setLoading] = useState(false); // Added loading state
+  const [extractedData, setExtractedData] = useState(null); // To store extracted data
 
   useEffect(() => {
-    console.log("useEffect triggered");
-
-    // Establish a new socket connection
-    const socket = io("http://localhost:8000");
+    // const socket = io("http://localhost:8000");
+    const socket = io(import.meta.env.BACKEND_BASE_URL);
 
     socket.on("connect", () => {
-      console.log("WebSocket connected!");
-
-      // Set the session ID received from the server
-      const sessionID = socket.id; // Socket.IO gives us the session ID automatically
+      const sessionID = socket.id;
       setSessionId(sessionID);
 
-      // Emit register event to the backend with the session ID
       socket.emit("register", { session_id: sessionID }, (response) => {
         if (response.success) {
           console.log("Successfully registered the new session");
@@ -33,45 +29,63 @@ const UploadBill = () => {
       setConnected(true);
     });
 
-    // Listen for the 'message' event (this will handle the message from 'send_message_to_session')
     socket.on("message", (data) => {
-      console.log("Message from another session:", data);
-
-      // Check if the message type is 'file' before displaying
-      if (data.type === "file") {
-        // If data contains the message you want to display, ensure you handle it correctly
-        // For example, if `data` is an object with a `message` key:
-        setMessage(data.url || "No file URL received"); // Display the file URL
+      if (data.type === "file" && data.url) {
+        setFileUrl(data.url); // Update fileUrl state
+      } else {
+        setMessage(data.url || "No file URL received");
       }
     });
 
     socket.on("disconnect", () => {
-      console.log("WebSocket disconnected!");
       setConnected(false);
     });
 
     return () => {
-      console.log("Closing socket connection");
       socket.close();
     };
   }, []);
 
   useEffect(() => {
-    if (sessionId) {
-      console.log("Fetching QR code for session ID:", sessionId); // Debug log before fetching QR code
-
-      fetch(`http://localhost:8000/chat/generate-qr/${sessionId}/`)
+    if (sessionId && !fileUrl) {
+      // fetch(`http://localhost:8000/chat/generate-qr/${sessionId}/`)
+      fetch(`${import.meta.env.BACKEND_BASE_URL}/chat/generate-qr/${sessionId}/`)
         .then((response) => response.blob())
         .then((imageBlob) => {
           const imageUrl = URL.createObjectURL(imageBlob);
-          console.log("QR code fetched successfully:", imageUrl); // Debug log for fetched QR code URL
           setQrUrl(imageUrl);
         })
         .catch((error) => {
           console.error("Error fetching QR code:", error);
         });
     }
-  }, [sessionId]);
+  }, [sessionId, fileUrl]);
+
+  const handleConfirm = async () => {
+    if (!fileUrl) return;
+
+    setLoading(true); // Start loading spinner
+
+    try {
+      const response = await fetch(`${import.meta.env.BACKEND_BASE_URL}/ai/extract/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file_url: fileUrl }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        console.log("Extracted Data:", data);
+        setExtractedData(data.data); // Store extracted data
+      } else {
+        console.error("Extraction failed:", data.error);
+      }
+    } catch (error) {
+      console.error("Error confirming bill:", error);
+    }
+
+    setLoading(false); // Stop loading spinner
+  };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-600">
@@ -80,6 +94,7 @@ const UploadBill = () => {
         <p>Status: {connected ? "Connected" : "Not Connected"}</p>
         <p>Session ID: {sessionId}</p>
 
+        {/* Display QR Code and File Upload section */}
         {!fileUrl ? (
           <div>
             <h3 className="text-lg font-semibold">
@@ -97,40 +112,55 @@ const UploadBill = () => {
         ) : (
           <div className="mt-4 flex flex-col items-center">
             <h3 className="text-lg font-semibold">Upload Successful!</h3>
-            <p className="mt-2 text-gray-600">
-              Your file has been uploaded successfully.
-            </p>
+            <p className="mt-2 text-gray-600">Your file has been uploaded successfully.</p>
             <div className="mt-4">
-              <img
-                src={fileUrl}
-                alt="Uploaded file preview"
-                className="max-w-full h-auto"
-              />
+              <img src={fileUrl} alt="Uploaded file preview" className="max-w-full h-auto" />
             </div>
-            <div className="mt-4 flex gap-4">
-              <button className="px-4 py-2 bg-red-500 text-white rounded-lg">
-                Re-upload
+            <div className="mt-4">
+              <button
+                className={`px-4 py-2 rounded-lg transition ${loading ? "bg-gray-400 cursor-not-allowed" : "bg-blue-500 hover:bg-blue-600"} text-white`}
+                onClick={handleConfirm}
+                disabled={loading} // Disable button during loading
+              >
+                {loading ? (
+                  <div className="flex items-center">
+                    <svg
+                      className="animate-spin h-5 w-5 mr-2 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v8H4z"
+                      ></path>
+                    </svg>
+                    Processing...
+                  </div>
+                ) : (
+                  "Confirm"
+                )}
               </button>
             </div>
           </div>
         )}
 
-        {/* Display the message from the other connection */}
-        {message && (
-          <div className="mt-4 p-4 bg-green-200 text-black rounded-lg">
-            <h4 className="font-semibold">Message from another connection:</h4>
-            {/* If the message is a URL, display it as an image */}
-            {message.match(/\.(jpeg|jpg|gif|png|webp)$/) ? (
-              <div className="mt-2">
-                <img
-                  src={message}
-                  alt="File Preview"
-                  className="max-w-full h-auto"
-                />
-              </div>
-            ) : (
-              <p>{message}</p> // Display the message text if it's not a valid image URL
-            )}
+        {/* Display Extracted Data */}
+        {extractedData && (
+          <div className="mt-6 bg-gray-100 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold">Extracted Data:</h3>
+            <pre className="text-sm text-gray-800 overflow-x-auto">
+              {JSON.stringify(extractedData, null, 2)}
+            </pre>
           </div>
         )}
       </div>
