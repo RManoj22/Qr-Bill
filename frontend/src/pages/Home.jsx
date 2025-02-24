@@ -10,6 +10,7 @@ const Home = () => {
   const [qrUrl, setQrUrl] = useState("");
   const [socket, setSocket] = useState(null);
   const [fileUrl, setFileUrl] = useState(null);
+  const [uploadedFrom, setUploadedFrom] = useState(null);
   const navigate = useNavigate();
 
   const openModal = () => {
@@ -34,6 +35,7 @@ const Home = () => {
       if (data.type === "file" && data.url && data.session_id) {
         console.log("File URL received:", data.url);
         setFileUrl(data.url);
+        setUploadedFrom(data.uploaded_from);
         setIsModalOpen(false);
       }
     });
@@ -63,6 +65,15 @@ const Home = () => {
 
   const handleConfirm = () => {
     console.log("File confirmed:", fileUrl);
+  };
+
+  const handleCancel = () => {
+    setFileUrl(null);
+    setUploadedFrom(null);
+    if (socket) {
+      socket.close();
+      setSocket(null);
+    }
   };
 
   return (
@@ -130,6 +141,20 @@ const Home = () => {
               className="px-6 py-3 text-white bg-green-500 rounded-lg hover:bg-green-600"
             >
               Confirm
+            </button>
+            {uploadedFrom !== "mobile" && (
+              <button
+                onClick={openModal}
+                className="mt-4 px-6 py-3 text-white bg-blue-500 rounded-lg hover:bg-blue-600"
+              >
+                Re-Upload
+              </button>
+            )}
+            <button
+              onClick={handleCancel}
+              className="mt-4 px-6 py-3 text-white bg-red-500 rounded-lg hover:bg-red-600"
+            >
+              Cancel
             </button>
           </div>
         </div>
