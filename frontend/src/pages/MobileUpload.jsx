@@ -50,29 +50,31 @@ const MobileUpload = () => {
   const handleFileChange = async (event) => {
     const file = event.target.files[0];
     if (!file || !sessionId) return;
-
+  
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("upload_source", "mobile"); // Add a flag to indicate mobile upload
     setLoading(true);
-
+  
     try {
-      const uploadUrl = `http://127.0.0.1:8000/chat/upload/${sessionId}/`;
+      const uploadUrl = `http://127.0.0.1:8000/api/bill/upload/${sessionId}/`;
       const response = await fetch(uploadUrl, { method: "POST", body: formData });
       if (!response.ok) throw new Error(`Upload failed with status ${response.status}`);
-
+  
       const data = await response.json();
       setFileUrl(data.file_url);
-
+  
       // Send a notification to the external session (from the URL) once the file is uploaded
       if (externalSessionId && socket && socket.connected) {
         console.log("Sending WebSocket notification to external session:", externalSessionId);
-
+  
         const userMessage = {
           session_id: externalSessionId,
-          message: data.file_url, // The file URL is the message
-          type: 'file', // Indicating that this is a file URL message
+          message: data.file_url,
+          type: 'file',
+          uploaded_from:'mobile'
         };
-
+  
         socket.emit("send_message_to_session", userMessage, (response) => {
           console.log("Response from server after message emission:", response);
         });
@@ -85,14 +87,13 @@ const MobileUpload = () => {
       setLoading(false);
     }
   };
-
   const handleReupload = async () => {
     if (!fileUrl || !sessionId) return;
 
     const fileName = fileUrl.split("/").pop();
 
     try {
-      const deleteUrl = `http://127.0.0.1:8000/chat/delete/${sessionId}/?file_name=${fileName}`;
+      const deleteUrl = `http://127.0.0.1:8000/api/bill/delete/${sessionId}/?file_name=${fileName}`;
       const response = await fetch(deleteUrl, { method: "DELETE" });
 
       if (!response.ok) {

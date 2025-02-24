@@ -50,7 +50,7 @@ const UploadBill = () => {
   useEffect(() => {
     if (sessionId && !fileUrl) {
       // fetch(`http://localhost:8000/chat/generate-qr/${sessionId}/`)
-      fetch(`${import.meta.env.VITE_BACKEND_BASE_URL}/chat/generate-qr/${sessionId}/`)
+      fetch(`${import.meta.env.VITE_BACKEND_BASE_URL}/api/bill/generate-qr/${sessionId}/`)
         .then((response) => response.blob())
         .then((imageBlob) => {
           const imageUrl = URL.createObjectURL(imageBlob);
@@ -68,7 +68,7 @@ const UploadBill = () => {
     setLoading(true); // Start loading spinner
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_BASE_URL}/ai/extract/`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_BASE_URL}/api/bill/extract/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ file_url: fileUrl }),
