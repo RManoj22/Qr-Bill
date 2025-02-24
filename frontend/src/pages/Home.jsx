@@ -119,12 +119,67 @@ const Home = () => {
     }
   };
 
-  const handleCancel = () => {
-    setFileUrl(null);
-    setUploadedFrom(null);
-    if (socket) {
-      socket.close();
-      setSocket(null);
+  const handleReupload = async () => {
+    if (!fileUrl || !sessionId) return;
+
+    const fileName = fileUrl.split("/").pop();
+
+    try {
+      const deleteUrl = `http://127.0.0.1:8000/api/bill/delete/${sessionId}/?file_name=${fileName}`;
+      const response = await fetch(deleteUrl, { method: "DELETE" });
+
+      if (!response.ok) {
+        throw new Error(`Delete request failed with status ${response.status}`);
+      }
+
+      console.log("File deleted successfully");
+
+      // Reset the file-related states but keep the socket connection
+      setFileUrl(null);
+      setUploadedFrom(null);
+
+      // Reopen the modal for a new upload
+      setIsModalOpen(true);
+    } catch (error) {
+      console.error("Failed to delete file:", error);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!fileUrl || !sessionId) {
+      if (socket) {
+        socket.close();
+        setSocket(null);
+      }
+      setFileUrl(null);
+      setUploadedFrom(null);
+      setIsModalOpen(false);
+      return;
+    }
+
+    const fileName = fileUrl.split("/").pop();
+
+    try {
+      console.log("session id", sessionId)
+      const deleteUrl = `http://127.0.0.1:8000/api/bill/delete/${sessionId}/?file_name=${fileName}`;
+      const response = await fetch(deleteUrl, { method: "DELETE" });
+
+      if (!response.ok) {
+        throw new Error(`Delete request failed with status ${response.status}`);
+      }
+
+      console.log("File deleted successfully");
+    } catch (error) {
+      console.error("Failed to delete file:", error);
+    } finally {
+      // Always close WebSocket and reset UI
+      if (socket) {
+        socket.close();
+        setSocket(null);
+      }
+      setFileUrl(null);
+      setUploadedFrom(null);
+      setIsModalOpen(false);
     }
   };
 
@@ -219,7 +274,7 @@ const Home = () => {
             </button>
             {uploadedFrom !== "mobile" && (
               <button
-                onClick={openModal}
+                onClick={handleReupload}
                 className="mt-4 px-6 py-3 text-white bg-blue-500 rounded-lg hover:bg-blue-600"
               >
                 Re-Upload

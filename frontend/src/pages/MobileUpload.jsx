@@ -57,7 +57,7 @@ const MobileUpload = () => {
     setLoading(true);
 
     try {
-      const uploadUrl = `http://127.0.0.1:8000/api/bill/upload/${sessionId}/`;
+      const uploadUrl = `http://127.0.0.1:8000/api/bill/upload/${externalSessionId}/`;
       const response = await fetch(uploadUrl, {
         method: "POST",
         body: formData,
