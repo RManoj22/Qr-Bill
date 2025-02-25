@@ -2,6 +2,12 @@ import React, { useState, useEffect } from "react";
 import { io } from "socket.io-client";
 import { X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { Document, Page, pdfjs } from "react-pdf";
+
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url
+).toString();
 
 const Home = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -68,10 +74,34 @@ const Home = () => {
     }
   }, [sessionId]);
 
-  const handleConfirm = () => {
-    console.log("File confirmed:", fileUrl);
-  };
+  const handleConfirm = async () => {
+    if (!fileUrl) return;
 
+    setLoading(true); // Start loading spinner
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_BACKEND_BASE_URL}/api/bill/extract/`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ file_url: fileUrl }),
+        }
+      );
+
+      const data = await response.json();
+      if (response.ok) {
+        console.log("Extracted Data:", data);
+        setExtractedData(data.data); // Store extracted data
+      } else {
+        console.error("Extraction failed:", data.error);
+      }
+    } catch (error) {
+      console.error("Error confirming bill:", error);
+    }
+
+    setLoading(false); // Stop loading spinner
+  };
   const handleFileChange = async (event) => {
     console.log("File change event:", event);
     const file = event.target.files[0];
@@ -160,7 +190,7 @@ const Home = () => {
     const fileName = fileUrl.split("/").pop();
 
     try {
-      console.log("session id", sessionId)
+      console.log("session id", sessionId);
       const deleteUrl = `http://127.0.0.1:8000/api/bill/delete/${sessionId}/?file_name=${fileName}`;
       const response = await fetch(deleteUrl, { method: "DELETE" });
 
@@ -258,11 +288,23 @@ const Home = () => {
         <div className="fixed inset-0 flex">
           <div className="w-2/3 h-full flex items-center justify-center bg-white">
             <div className="w-full h-full flex items-center justify-center">
-              <img
-                src={fileUrl}
-                alt="Uploaded File"
-                className="w-full h-full object-contain"
-              />
+              {fileUrl.endsWith(".pdf") ? (
+                <Document
+                  file={fileUrl}
+                  onLoadError={(error) =>
+                    console.error("Error loading PDF:", error)
+                  }
+                  className="w-full h-full overflow-auto"
+                >
+                  <Page pageNumber={1} width={600} />
+                </Document>
+              ) : (
+                <img
+                  src={fileUrl}
+                  alt="Uploaded File"
+                  className="w-full h-full object-contain"
+                />
+              )}
             </div>
           </div>
           <div className="w-1/3 h-full flex flex-col items-center justify-center bg-gray-100 p-6">
