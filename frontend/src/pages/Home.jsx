@@ -92,7 +92,7 @@ const Home = () => {
       const data = await response.json();
       if (response.ok) {
         console.log("Extracted Data:", data);
-        setExtractedData(data.data); // Store extracted data
+        navigate("/vendor-invoice", { state: { invoiceData: data.data } });
       } else {
         console.error("Extraction failed:", data.error);
       }
@@ -253,6 +253,7 @@ const Home = () => {
                     <input
                       type="file"
                       id="file-upload"
+                      accept="image/*, application/pdf"
                       className="hidden"
                       onChange={handleFileChange}
                     />

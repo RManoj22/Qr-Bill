@@ -129,7 +129,7 @@ const MobileUpload = () => {
             Capture with Camera
             <input
               type="file"
-              accept="image/*"
+              accept="image/*, application/pdf"
               capture="environment"
               className="hidden"
               onChange={handleFileChange}
@@ -140,7 +140,7 @@ const MobileUpload = () => {
             Upload from Gallery
             <input
               type="file"
-              accept="image/*"
+              accept="image/*, application/pdf"
               className="hidden"
               onChange={handleFileChange}
             />

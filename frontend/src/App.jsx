@@ -5,6 +5,7 @@ import UploadBill from "./pages/UploadBill";
 import MobileUpload from "./pages/MobileUpload";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
+import VendorInvoice from "./pages/VendorInvoice";
 
 function App() {
   return (
@@ -12,7 +13,8 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/upload-bill" element={<UploadBill />} />
-        <Route path="/mobile_upload" element={<MobileUpload />} />
+        <Route path="/mobile-upload" element={<MobileUpload />} />
+        <Route path="/vendor-invoice" element={<VendorInvoice />} />
       </Routes>
     </Router>
   );
