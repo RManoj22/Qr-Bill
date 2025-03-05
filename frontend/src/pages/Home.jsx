@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { io } from "socket.io-client";
 import { X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -16,8 +16,11 @@ const Home = () => {
   const [qrUrl, setQrUrl] = useState("");
   const [socket, setSocket] = useState(null);
   const [fileUrl, setFileUrl] = useState(null);
+  const [fileType, setFileType] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
   const [uploadedFrom, setUploadedFrom] = useState(null);
   const [loading, setLoading] = useState(false);
+  const memoizedFileUrl = useMemo(() => fileUrl, [fileUrl]);
   const navigate = useNavigate();
 
   const openModal = () => {
@@ -57,6 +60,8 @@ const Home = () => {
   };
 
   useEffect(() => {
+    let imageUrl = null;
+
     if (sessionId) {
       fetch(
         `${
@@ -65,27 +70,36 @@ const Home = () => {
       )
         .then((response) => response.blob())
         .then((imageBlob) => {
-          const imageUrl = URL.createObjectURL(imageBlob);
+          imageUrl = URL.createObjectURL(imageBlob);
           setQrUrl(imageUrl);
         })
         .catch((error) => {
           console.error("Error fetching QR code:", error);
         });
     }
+
+    return () => {
+      if (imageUrl) {
+        URL.revokeObjectURL(imageUrl);
+      }
+    };
   }, [sessionId]);
 
   const handleConfirm = async () => {
     if (!fileUrl) return;
 
-    setLoading(true); // Start loading spinner
+    setLoading(true);
 
     try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("session_id", sessionId);
+
       const response = await fetch(
         `${import.meta.env.VITE_BACKEND_BASE_URL}/api/bill/extract/`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ file_url: fileUrl }),
+          body: formData,
         }
       );
 
@@ -100,117 +114,69 @@ const Home = () => {
       console.error("Error confirming bill:", error);
     }
 
-    setLoading(false); // Stop loading spinner
+    setLoading(false);
   };
-  const handleFileChange = async (event) => {
+
+  const handleFileChange = (event) => {
     console.log("File change event:", event);
     const file = event.target.files[0];
-    if (!file || !sessionId) return;
+    if (!file) return;
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_source", "computer");
+    const previewUrl = URL.createObjectURL(file);
+    setFileUrl(previewUrl);
+    setFileType(file.type);
+    setSelectedFile(file);
+    setUploadedFrom("computer");
 
-    setLoading(true);
+    if (socket && socket.connected) {
+      console.log("Sending WebSocket notification to external session");
 
-    try {
-      const uploadUrl = `http://127.0.0.1:8000/api/bill/upload/${sessionId}/`;
-      const response = await fetch(uploadUrl, {
-        method: "POST",
-        body: formData,
+      const userMessage = {
+        session_id: sessionId,
+        message: previewUrl,
+        type: "file",
+        uploaded_from: "computer",
+      };
+
+      socket.emit("send_message_to_session", userMessage, (response) => {
+        console.log("Response from server after message emission:", response);
       });
-      if (!response.ok)
-        throw new Error(`Upload failed with status ${response.status}`);
-
-      const data = await response.json();
-      setFileUrl(data.file_url);
-      setUploadedFrom("computer");
-
-      if (socket && socket.connected) {
-        console.log("Sending WebSocket notification to external session");
-
-        const userMessage = {
-          session_id: sessionId,
-          message: data.file_url,
-          type: "file",
-          uploaded_from: "computer",
-        };
-
-        socket.emit("send_message_to_session", userMessage, (response) => {
-          console.log("Response from server after message emission:", response);
-        });
-      } else {
-        console.error("WebSocket is not connected.");
-      }
-    } catch (error) {
-      console.error("Upload failed:", error);
-    } finally {
-      setLoading(false);
+    } else {
+      console.error("WebSocket is not connected.");
     }
   };
 
   const handleReupload = async () => {
-    if (!fileUrl || !sessionId) return;
-
-    const fileName = fileUrl.split("/").pop();
+    if (!sessionId) return;
 
     try {
-      const deleteUrl = `http://127.0.0.1:8000/api/bill/delete/${sessionId}/?file_name=${fileName}`;
-      const response = await fetch(deleteUrl, { method: "DELETE" });
-
-      if (!response.ok) {
-        throw new Error(`Delete request failed with status ${response.status}`);
-      }
-
-      console.log("File deleted successfully");
-
-      // Reset the file-related states but keep the socket connection
       setFileUrl(null);
       setUploadedFrom(null);
+      console.log("Re-upload successful");
 
-      // Reopen the modal for a new upload
       setIsModalOpen(true);
     } catch (error) {
       console.error("Failed to delete file:", error);
     }
   };
 
+  const handleCloseModal = () => {
+    if (socket) {
+      socket.close();
+      setSocket(null);
+    }
+    setIsModalOpen(false);
+  };
+
   const handleCancel = async () => {
-    if (!fileUrl || !sessionId) {
-      if (socket) {
-        socket.close();
-        setSocket(null);
-      }
-      setFileUrl(null);
-      setUploadedFrom(null);
-      setIsModalOpen(false);
-      return;
+    if (socket) {
+      socket.close();
+      setSocket(null);
     }
-
-    const fileName = fileUrl.split("/").pop();
-
-    try {
-      console.log("session id", sessionId);
-      const deleteUrl = `http://127.0.0.1:8000/api/bill/delete/${sessionId}/?file_name=${fileName}`;
-      const response = await fetch(deleteUrl, { method: "DELETE" });
-
-      if (!response.ok) {
-        throw new Error(`Delete request failed with status ${response.status}`);
-      }
-
-      console.log("File deleted successfully");
-    } catch (error) {
-      console.error("Failed to delete file:", error);
-    } finally {
-      // Always close WebSocket and reset UI
-      if (socket) {
-        socket.close();
-        setSocket(null);
-      }
-      setFileUrl(null);
-      setUploadedFrom(null);
-      setIsModalOpen(false);
-    }
+    setFileUrl(null);
+    setUploadedFrom(null);
+    setIsModalOpen(false);
+    return;
   };
 
   return (
@@ -228,7 +194,7 @@ const Home = () => {
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white rounded-lg shadow-lg w-2/3 max-w-3xl h-auto p-6 relative">
             <button
-              onClick={() => setIsModalOpen(false)}
+              onClick={handleCloseModal}
               className="absolute top-3 right-3 text-gray-600 hover:text-gray-800"
             >
               <X size={24} />
@@ -287,11 +253,19 @@ const Home = () => {
 
       {fileUrl && (
         <div className="fixed inset-0 flex">
+          {loading && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center">
+                <div className="w-12 h-12 border-4 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+                <p className="mt-4 text-lg font-semibold">Processing...</p>
+              </div>
+            </div>
+          )}
           <div className="w-2/3 h-full flex items-center justify-center bg-white">
             <div className="w-full h-full flex items-center justify-center">
-              {fileUrl.endsWith(".pdf") ? (
+              {fileType === "application/pdf" ? (
                 <Document
-                  file={fileUrl}
+                  file={memoizedFileUrl}
                   onLoadError={(error) =>
                     console.error("Error loading PDF:", error)
                   }
