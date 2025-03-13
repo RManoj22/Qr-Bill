@@ -25,7 +25,7 @@ const Home = () => {
 
   const openModal = () => {
     setIsModalOpen(true);
-    const newSocket = io("http://localhost:8000");
+    const newSocket = io(import.meta.env.VITE_BACKEND_BASE_URL);
     setSocket(newSocket);
 
     newSocket.on("connect", () => {
@@ -44,7 +44,9 @@ const Home = () => {
     newSocket.on("message", (data) => {
       if (data.type === "file" && data.url && data.session_id) {
         console.log("File URL received:", data.url);
+        console.log("File type received:", data.file_type);
         setFileUrl(data.url);
+        setFileType(data.file_type);
         setUploadedFrom(data.uploaded_from);
         setIsModalOpen(false);
       }
@@ -124,7 +126,6 @@ const Home = () => {
 
     const previewUrl = URL.createObjectURL(file);
     setFileUrl(previewUrl);
-    setFileType(file.type);
     setSelectedFile(file);
     setUploadedFrom("computer");
 
@@ -134,6 +135,7 @@ const Home = () => {
       const userMessage = {
         session_id: sessionId,
         message: previewUrl,
+        file_type: file.type,
         type: "file",
         uploaded_from: "computer",
       };
@@ -169,14 +171,48 @@ const Home = () => {
   };
 
   const handleCancel = async () => {
-    if (socket) {
-      socket.close();
-      setSocket(null);
+    setLoading(true);
+
+    if (uploadedFrom === "mobile") {
+      try {
+        const fileName = fileUrl.split("/").pop();
+        const deleteUrl = `${
+          import.meta.env.VITE_BACKEND_BASE_URL
+        }/api/bill/delete/${sessionId}/?file_name=${fileName}`;
+        const response = await fetch(deleteUrl, { method: "DELETE" });
+
+        if (!response.ok) {
+          throw new Error(
+            `Delete request failed with status ${response.status}`
+          );
+        }
+
+        console.log("File deleted successfully");
+
+        if (socket) {
+          socket.onclose = () => {
+            console.log("Socket closed");
+            setSocket(null);
+          };
+          socket.close();
+        }
+      } catch (error) {
+        console.error("Failed to delete file:", error);
+      }
+    } else {
+      if (socket) {
+        socket.onclose = () => {
+          console.log("Socket closed");
+          setSocket(null);
+        };
+        socket.close();
+      }
     }
+
     setFileUrl(null);
     setUploadedFrom(null);
     setIsModalOpen(false);
-    return;
+    setLoading(false);
   };
 
   return (

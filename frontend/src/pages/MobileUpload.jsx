@@ -5,6 +5,7 @@ import { io } from "socket.io-client";
 const MobileUpload = () => {
   const [sessionId, setSessionId] = useState(null);
   const [fileUrl, setFileUrl] = useState(null);
+  const [fileType, setfileType] = useState(null);
   const [loading, setLoading] = useState(false);
   const [socket, setSocket] = useState(null); // Socket state for maintaining the socket connection
   const [externalSessionId, setExternalSessionId] = useState(null); // State for external session ID
@@ -49,6 +50,8 @@ const MobileUpload = () => {
 
   const handleFileChange = async (event) => {
     const file = event.target.files[0];
+    const fileType = file.type;
+    console.log("fileType:", fileType);
     if (!file || !sessionId) return;
 
     const formData = new FormData();
@@ -57,7 +60,9 @@ const MobileUpload = () => {
     setLoading(true);
 
     try {
-      const uploadUrl = `http://127.0.0.1:8000/api/bill/upload/${externalSessionId}/`;
+      const uploadUrl = `${
+        import.meta.env.VITE_BACKEND_BASE_URL
+      }/api/bill/upload/${externalSessionId}/`;
       const response = await fetch(uploadUrl, {
         method: "POST",
         body: formData,
@@ -79,6 +84,7 @@ const MobileUpload = () => {
           session_id: externalSessionId,
           message: data.file_url,
           type: "file",
+          file_type: fileType,
           uploaded_from: "mobile",
         };
 
@@ -96,13 +102,17 @@ const MobileUpload = () => {
       setLoading(false);
     }
   };
+  
   const handleReupload = async () => {
+    setLoading(true);
     if (!fileUrl || !sessionId) return;
 
     const fileName = fileUrl.split("/").pop();
 
     try {
-      const deleteUrl = `http://127.0.0.1:8000/api/bill/delete/${sessionId}/?file_name=${fileName}`;
+      const deleteUrl = `${
+        import.meta.env.VITE_BACKEND_BASE_URL
+      }/api/bill/delete/${externalSessionId}/?file_name=${fileName}`;
       const response = await fetch(deleteUrl, { method: "DELETE" });
 
       if (!response.ok) {
@@ -111,6 +121,7 @@ const MobileUpload = () => {
 
       console.log("File deleted successfully");
       setFileUrl(null);
+      setLoading(false);
     } catch (error) {
       console.error("Failed to delete file:", error);
     }
