@@ -5,7 +5,7 @@ import { io } from "socket.io-client";
 const MobileUpload = () => {
   const [sessionId, setSessionId] = useState(null);
   const [fileUrl, setFileUrl] = useState(null);
-  const [fileType, setfileType] = useState(null);
+  const [sessionClosed, setSessionClosed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [socket, setSocket] = useState(null); // Socket state for maintaining the socket connection
   const [externalSessionId, setExternalSessionId] = useState(null); // State for external session ID
@@ -29,10 +29,22 @@ const MobileUpload = () => {
 
       // Set the session ID as the WebSocket's ID (new session for this client)
       setSessionId(socket.id);
+
+      socket.emit("mobile_connected", {
+        homeSessionId: externalSessionId, // Home page's session ID
+        mobileSessionId: socket.id, // Mobile page's session ID
+      });
     });
 
     socket.on("message", (data) => {
       console.log("Received message from server:", data); // Log received messages
+    });
+
+    socket.on("session_closed", (data) => {
+      console.log("Session closed:", data);
+      setSessionClosed(true);
+      setSocket(null);
+      setSessionId(null);
     });
 
     socket.on("disconnect", () => {
@@ -115,7 +127,7 @@ const MobileUpload = () => {
     const fileName = fileUrl.split("/").pop();
 
     try {
-      console.log('Deleting uploaded file')
+      console.log("Deleting uploaded file");
       const deleteUrl = `${
         import.meta.env.VITE_BACKEND_BASE_URL
       }/api/bill/delete/${externalSessionId}/?file_name=${fileName}`;
@@ -133,7 +145,7 @@ const MobileUpload = () => {
           session_id: externalSessionId,
           remove_preview: true,
         };
-        console.log('Sending remove file preview message')
+        console.log("Sending remove file preview message");
         socket.emit("remove_file_preview", removePreviewMessage, (response) => {
           console.log(
             "Response from server after emitting remove event:",
@@ -155,7 +167,16 @@ const MobileUpload = () => {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-4">
       <h2 className="text-xl font-semibold">Upload Your Bill</h2>
-      {loading ? (
+
+      {/* Show session closed message if session is closed */}
+      {sessionClosed ? (
+        <div className="mt-4 p-4 bg-red-100 text-red-700 rounded-lg">
+          <h3 className="text-lg font-semibold">Session has been closed.</h3>
+          <p className="mt-2">
+            Please scan a new QR code to start a new session.
+          </p>
+        </div>
+      ) : loading ? (
         <div className="flex justify-center items-center">
           <div className="w-8 h-8 border-4 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
         </div>

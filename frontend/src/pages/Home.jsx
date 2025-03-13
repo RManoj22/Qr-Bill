@@ -13,6 +13,7 @@ const Home = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [connected, setConnected] = useState(false);
   const [sessionId, setSessionId] = useState(null);
+  const [mobileSessionId, setMobileSessionId] = useState(null);
   const [qrUrl, setQrUrl] = useState("");
   const [socket, setSocket] = useState(null);
   const [fileUrl, setFileUrl] = useState(null);
@@ -39,6 +40,11 @@ const Home = () => {
         }
       });
       setConnected(true);
+    });
+
+    newSocket.on("mobile_connected", (data) => {
+      console.log("Mobile session ID received:", data.mobile_session_id);
+      setMobileSessionId(data.mobile_session_id);
     });
 
     newSocket.on("message", (data) => {
@@ -201,6 +207,10 @@ const Home = () => {
         console.log("File deleted successfully");
 
         if (socket) {
+          if (mobileSessionId) {
+            console.log("Notifying mobile session:", mobileSessionId);
+            socket.emit("session_closed", { mobileSessionId });
+          }
           socket.onclose = () => {
             console.log("Socket closed");
             setSocket(null);
