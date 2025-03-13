@@ -52,6 +52,17 @@ const Home = () => {
       }
     });
 
+    newSocket.on("remove_file_preview", (data) => {
+      console.log("Received remove file event:", data);
+
+      if (data.remove_preview) {
+        setFileUrl(null);
+        setUploadedFrom(null);
+        console.log("Removed file preview");
+        setIsModalOpen(true);
+      }
+    });
+
     newSocket.on("disconnect", () => {
       setConnected(false);
     });

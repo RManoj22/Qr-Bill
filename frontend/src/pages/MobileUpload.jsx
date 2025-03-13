@@ -102,14 +102,20 @@ const MobileUpload = () => {
       setLoading(false);
     }
   };
-  
+
   const handleReupload = async () => {
+    const isConfirmed = window.confirm(
+      "Are you sure you want to re-upload the file?"
+    );
+    if (!isConfirmed) return;
+
     setLoading(true);
-    if (!fileUrl || !sessionId) return;
+    if (!fileUrl || !sessionId || !socket) return;
 
     const fileName = fileUrl.split("/").pop();
 
     try {
+      console.log('Deleting uploaded file')
       const deleteUrl = `${
         import.meta.env.VITE_BACKEND_BASE_URL
       }/api/bill/delete/${externalSessionId}/?file_name=${fileName}`;
@@ -121,9 +127,28 @@ const MobileUpload = () => {
 
       console.log("File deleted successfully");
       setFileUrl(null);
-      setLoading(false);
+
+      if (externalSessionId && socket.connected) {
+        const removePreviewMessage = {
+          session_id: externalSessionId,
+          remove_preview: true,
+        };
+        console.log('Sending remove file preview message')
+        socket.emit("remove_file_preview", removePreviewMessage, (response) => {
+          console.log(
+            "Response from server after emitting remove event:",
+            response
+          );
+        });
+      } else {
+        console.error(
+          "WebSocket is not connected or external session ID is missing."
+        );
+      }
     } catch (error) {
       console.error("Failed to delete file:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
