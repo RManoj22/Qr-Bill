@@ -181,6 +181,13 @@ const Home = () => {
 
   const handleCloseModal = () => {
     if (socket) {
+      if (mobileSessionId) {
+        console.log("Notifying mobile session:", mobileSessionId);
+        socket.emit("session_closed", {
+          mobileSessionId: mobileSessionId,
+          sessionId: sessionId,
+        });
+      }
       socket.close();
       setSocket(null);
     }
@@ -209,7 +216,10 @@ const Home = () => {
         if (socket) {
           if (mobileSessionId) {
             console.log("Notifying mobile session:", mobileSessionId);
-            socket.emit("session_closed", { mobileSessionId });
+            socket.emit("session_closed", {
+              mobileSessionId: mobileSessionId,
+              sessionId: sessionId,
+            });
           }
           socket.onclose = () => {
             console.log("Socket closed");

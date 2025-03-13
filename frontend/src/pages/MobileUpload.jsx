@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom"; // Hook to access query params
+import React, { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { io } from "socket.io-client";
 
 const MobileUpload = () => {
@@ -7,58 +7,97 @@ const MobileUpload = () => {
   const [fileUrl, setFileUrl] = useState(null);
   const [sessionClosed, setSessionClosed] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [socket, setSocket] = useState(null); // Socket state for maintaining the socket connection
-  const [externalSessionId, setExternalSessionId] = useState(null); // State for external session ID
-  const [searchParams] = useSearchParams(); // Get query params from URL
+  const [socket, setSocket] = useState(null);
+  const [externalSessionId, setExternalSessionId] = useState(null);
+  const [searchParams] = useSearchParams();
+
+  const hasCheckedSession = useRef(false);
 
   useEffect(() => {
-    // Extract the sessionId from URL query parameters
-    const externalSessionId = searchParams.get("sessionId"); // This will fetch ?sessionId=xyz
+    const externalSessionId = searchParams.get("sessionId");
     console.log("Session ID from URL:", externalSessionId);
-
-    // Store the external session ID in state
     setExternalSessionId(externalSessionId);
 
-    // Create a new WebSocket connection, which will generate a new session ID
-    // const socket = io("http://localhost:8000");
-    const socket = io(import.meta.env.VITE_BACKEND_BASE_URL);
+    if (!externalSessionId) {
+      console.log(
+        "No session ID provided in the URL. Aborting WebSocket connection."
+      );
+      return;
+    }
 
-    socket.on("connect", () => {
-      console.log("WebSocket connected successfully!");
-      console.log("New WebSocket connection SID:", socket.id); // Log the connection SID
+    if (hasCheckedSession.current) {
+      console.log(
+        "Session status check already performed. Skipping duplicate call."
+      );
+      return;
+    }
+    hasCheckedSession.current = true;
 
-      // Set the session ID as the WebSocket's ID (new session for this client)
-      setSessionId(socket.id);
+    const checkSessionActive = async () => {
+      try {
+        const response = await fetch(
+          `${
+            import.meta.env.VITE_BACKEND_BASE_URL
+          }/api/bill/session/status/${externalSessionId}/`
+        );
 
-      socket.emit("mobile_connected", {
-        homeSessionId: externalSessionId, // Home page's session ID
-        mobileSessionId: socket.id, // Mobile page's session ID
-      });
-    });
+        if (!response.ok) throw new Error("Failed to check session status");
 
-    socket.on("message", (data) => {
-      console.log("Received message from server:", data); // Log received messages
-    });
+        const data = await response.json();
+        if (!data.is_active) {
+          console.log(
+            "Session is inactive. WebSocket connection will not be established."
+          );
+          setSessionClosed(true);
+          return;
+        }
 
-    socket.on("session_closed", (data) => {
-      console.log("Session closed:", data);
-      setSessionClosed(true);
-      setSocket(null);
-      setSessionId(null);
-    });
+        console.log(
+          "Session is active. Proceeding with WebSocket connection..."
+        );
 
-    socket.on("disconnect", () => {
-      console.log("WebSocket disconnected");
-    });
+        const socket = io(import.meta.env.VITE_BACKEND_BASE_URL);
+        socket.on("connect", () => {
+          console.log("WebSocket connected successfully!");
+          console.log("New WebSocket connection SID:", socket.id);
+          setSessionId(socket.id);
 
-    setSocket(socket);
+          socket.emit("mobile_connected", {
+            homeSessionId: externalSessionId,
+            mobileSessionId: socket.id,
+          });
+        });
 
-    // Cleanup on component unmount
-    return () => {
-      console.log("Closing WebSocket connection...");
-      socket.close();
+        socket.on("message", (data) => {
+          console.log("Received message from server:", data);
+        });
+
+        socket.on("session_closed", (data) => {
+          console.log("Session closed:", data);
+          setSessionClosed(true);
+          setSocket(null);
+          setSessionId(null);
+        });
+
+        socket.on("disconnect", () => {
+          console.log("WebSocket disconnected");
+        });
+
+        setSocket(socket);
+      } catch (error) {
+        console.error("Error checking session status:", error);
+      }
     };
-  }, [searchParams]); // Depend on searchParams to re-run if the query param changes
+
+    checkSessionActive();
+
+    return () => {
+      if (socket) {
+        console.log("Closing WebSocket connection...");
+        socket.close();
+      }
+    };
+  }, [searchParams]);
 
   const handleFileChange = async (event) => {
     const file = event.target.files[0];
@@ -68,7 +107,7 @@ const MobileUpload = () => {
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("upload_source", "mobile"); // Add a flag to indicate mobile upload
+    formData.append("upload_source", "mobile");
     setLoading(true);
 
     try {
@@ -85,7 +124,6 @@ const MobileUpload = () => {
       const data = await response.json();
       setFileUrl(data.file_url);
 
-      // Send a notification to the external session (from the URL) once the file is uploaded
       if (externalSessionId && socket && socket.connected) {
         console.log(
           "Sending WebSocket notification to external session:",
@@ -168,7 +206,6 @@ const MobileUpload = () => {
     <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-4">
       <h2 className="text-xl font-semibold">Upload Your Bill</h2>
 
-      {/* Show session closed message if session is closed */}
       {sessionClosed ? (
         <div className="mt-4 p-4 bg-red-100 text-red-700 rounded-lg">
           <h3 className="text-lg font-semibold">Session has been closed.</h3>
